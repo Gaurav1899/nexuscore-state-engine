@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusCore Chat - State Engine Interface</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #475569 #1e293b;
+    }
+    
+    *::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    *::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    
+    *::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 3px;
+    }
+    
+    .message-enter {
+      animation: slideUp 0.4s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .typing-indicator span {
+      animation: typing 1.4s infinite;
+    }
+    
+    .typing-indicator span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .typing-indicator span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes typing {
+      0%, 60%, 100% {
+        opacity: 0.5;
+      }
+      30% {
+        opacity: 1;
+      }
+    }
+    
+    .gradient-text {
+      background: linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .pulse-dot {
+      animation: pulse-animation 2s infinite;
+    }
+    
+    @keyframes pulse-animation {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 h-screen flex overflow-hidden">
+  
+  <div class="flex w-full h-full">
+    <!-- Sidebar -->
+    <div class="w-64 bg-slate-900/50 backdrop-blur border-r border-slate-800 flex flex-col">
+      <!-- Logo -->
+      <div class="p-4 border-b border-slate-800">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center font-bold text-sm">NC</div>
+          <div>
+            <div class="font-bold text-sm text-cyan-400">NexusCore</div>
+            <div class="text-xs text-slate-400">Chat Engine</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Chat Button -->
+      <div class="p-4">
+        <button onclick="newChat()" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2">
+          <span>➕</span>
+          <span>New Chat</span>
+        </button>
+      </div>
+
+      <!-- Chat History -->
+      <div class="flex-1 overflow-y-auto px-3">
+        <div class="text-xs text-slate-400 font-semibold mb-3 px-2">CHAT HISTORY</div>
+        <div id="chatHistory" class="space-y-1">
+          <button onclick="selectChat(0)" class="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-slate-800/50 transition text-slate-300 truncate bg-slate-800/30 border border-slate-700/50">
+            📝 Chat Session 1
+          </button>
+        </div>
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="border-t border-slate-800 p-4 space-y-2">
+        <button onclick="toggleSettings()" class="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-slate-800/50 transition text-slate-300 flex items-center gap-2">
+          <span>⚙️</span>
+          <span>Settings</span>
+        </button>
+        <button onclick="toggleDocs()" class="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-slate-800/50 transition text-slate-300 flex items-center gap-2">
+          <span>📚</span>
+          <span>Documentation</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col bg-slate-900/30">
+      <!-- Header -->
+      <div class="border-b border-slate-800 bg-slate-900/50 backdrop-blur px-6 py-4 flex justify-between items-center">
+        <div>
+          <h1 class="text-xl font-bold gradient-text">NexusCore State Engine Chat</h1>
+          <p id="sessionInfo" class="text-xs text-slate-400 mt-1">Messages: 0 | Checkpoints: 0</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="showStats()" class="p-2 hover:bg-slate-800/50 rounded-lg transition text-slate-300 text-xl">📊</button>
+          <button onclick="clearChat()" class="p-2 hover:bg-slate-800/50 rounded-lg transition text-slate-300 text-xl">🗑️</button>
+        </div>
+      </div>
+
+      <!-- Messages Container -->
+      <div id="messagesContainer" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div class="text-center py-12 text-slate-400">
+          <div class="text-5xl mb-4">💬</div>
+          <p class="text-lg font-semibold mb-2">Start a conversation with NexusCore</p>
+          <p class="text-sm">Send messages, create checkpoints, and manage your state engine</p>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="border-t border-slate-800 bg-slate-900/50 backdrop-blur p-4">
+        <div class="max-w-4xl mx-auto space-y-3">
+          <!-- Quick Actions -->
+          <div id="quickActions" class="flex flex-wrap gap-2">
+            <button onclick="quickAction('addMessage')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition">
+              💬 Send Message
+            </button>
+            <button onclick="quickAction('checkpoint')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 transition">
+              📌 Checkpoint
+            </button>
+            <button onclick="quickAction('step')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 transition">
+              ⚡ Execute Step
+            </button>
+            <button onclick="quickAction('rollback')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition">
+              ↩️ Rollback
+            </button>
+          </div>
+
+          <!-- Input Box -->
+          <div class="flex gap-3">
+            <input 
+              id="messageInput" 
+              type="text" 
+              placeholder="Type a message, command, or action..." 
+              class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
+              onkeypress="handleKeyPress(event)"
+            >
+            <button onclick="sendMessage()" class="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white px-6 py-3 rounded-lg font-medium transition flex items-center gap-2">
+              <span>Send</span>
+              <span>→</span>
+            </button>
+          </div>
+
+          <!-- Tips -->
+          <div class="text-xs text-slate-500 flex gap-4">
+            <span>💡 Tip: Type commands like <code class="bg-slate-800 px-2 py-0.5 rounded">/checkpoint v1</code> or <code class="bg-slate-800 px-2 py-0.5 rounded">/step name key value</code></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Modal -->
+  <div id="statsModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto">
+      <div class="p-6 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-900/95">
+        <h2 class="text-lg font-bold gradient-text">System Statistics</h2>
+        <button onclick="closeModal('statsModal')" class="text-slate-400 hover:text-slate-200 text-2xl">✕</button>
+      </div>
+      <div id="statsContent" class="p-6 space-y-4">
+        <!-- Stats will be populated here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-lg max-w-md w-full">
+      <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+        <h2 class="text-lg font-bold gradient-text">Settings</h2>
+        <button onclick="closeModal('settingsModal')" class="text-slate-400 hover:text-slate-200 text-2xl">✕</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="text-sm font-semibold text-slate-300 block mb-2">API Base URL</label>
+          <input id="apiUrl" type="text" value="http://127.0.0.1:8000/api" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200" placeholder="API URL">
+        </div>
+        <div>
+          <label class="text-sm font-semibold text-slate-300 block mb-2">Auto-refresh Interval (ms)</label>
+          <input id="refreshInterval" type="number" value="3000" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200">
+        </div>
+        <div>
+          <label class="flex items-center gap-2 text-sm font-semibold text-slate-300">
+            <input id="autoRefresh" type="checkbox" checked class="w-4 h-4">
+            Enable Auto-refresh
+          </label>
+        </div>
+        <button onclick="saveSettings()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg font-medium transition">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Docs Modal -->
+  <div id="docsModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto">
+      <div class="p-6 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-900/95">
+        <h2 class="text-lg font-bold gradient-text">Commands & Documentation</h2>
+        <button onclick="closeModal('docsModal')" class="text-slate-400 hover:text-slate-200 text-2xl">✕</button>
+      </div>
+      <div class="p-6 space-y-4 text-sm text-slate-300">
+        <div>
+          <p class="font-semibold text-cyan-400 mb-2">📝 Message Commands</p>
+          <code class="block bg-slate-800 p-2 rounded text-xs mb-2">/msg user "Your message"</code>
+          <code class="block bg-slate-800 p-2 rounded text-xs">Send a user message to working memory</code>
+        </div>
+        <div>
+          <p class="font-semibold text-purple-400 mb-2">📌 Checkpoint Commands</p>
+          <code class="block bg-slate-800 p-2 rounded text-xs mb-2">/checkpoint v1.0</code>
+          <code class="block bg-slate-800 p-2 rounded text-xs">Create a named checkpoint</code>
+        </div>
+        <div>
+          <p class="font-semibold text-emerald-400 mb-2">⚡ Step Commands</p>
+          <code class="block bg-slate-800 p-2 rounded text-xs mb-2">/step "StepName" "key" "value"</code>
+          <code class="block bg-slate-800 p-2 rounded text-xs">Execute a transactional step</code>
+        </div>
+        <div>
+          <p class="font-semibold text-amber-400 mb-2">↩️ Rollback Commands</p>
+          <code class="block bg-slate-800 p-2 rounded text-xs mb-2">/rollback v1.0</code>
+          <code class="block bg-slate-800 p-2 rounded text-xs">Restore to a checkpoint</code>
+        </div>
+        <div>
+          <p class="font-semibold text-blue-400 mb-2">📊 Other Commands</p>
+          <code class="block bg-slate-800 p-2 rounded text-xs mb-2">/status</code>
+          <code class="block bg-slate-800 p-2 rounded text-xs">Show current state</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_API = "http://127.0.0.1:8000/api";
+    let API = DEFAULT_API;
+    let messages = [];
+    let currentChatId = 0;
+    let chatSessions = [{ id: 0, title: "Chat Session 1", messages: [] }];
+    let autoRefreshInterval;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadSettings();
+      fetchState();
+      startAutoRefresh();
+    });
+
+    // Load Settings
+    function loadSettings() {
+      const savedApi = localStorage.getItem('nexusApi');
+      const savedInterval = localStorage.getItem('refreshInterval');
+      const savedAutoRefresh = localStorage.getItem('autoRefresh');
+      
+      if (savedApi) API = savedApi;
+      if (savedInterval) document.getElementById('refreshInterval').value = savedInterval;
+      if (savedAutoRefresh) document.getElementById('autoRefresh').checked = savedAutoRefresh === 'true';
+    }
+
+    // Save Settings
+    function saveSettings() {
+      const apiUrl = document.getElementById('apiUrl').value;
+      const interval = document.getElementById('refreshInterval').value;
+      const autoRefresh = document.getElementById('autoRefresh').checked;
+      
+      localStorage.setItem('nexusApi', apiUrl);
+      localStorage.setItem('refreshInterval', interval);
+      localStorage.setItem('autoRefresh', autoRefresh);
+      
+      API = apiUrl;
+      closeModal('settingsModal');
+      alert('Settings saved!');
+    }
+
+    // Fetch State
+    async function fetchState() {
+      try {
+        const res = await fetch(`${API}/state`);
+        const data = await res.json();
+        
+        document.getElementById('sessionInfo').textContent = 
+          `Messages: ${data.working_memory.length + data.paged_memory.length} | Checkpoints: ${data.checkpoints.length}`;
+        
+        return data;
+      } catch (err) {
+        console.error('Error fetching state:', err);
+      }
+    }
+
+    // Send Message
+    async function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      
+      if (!text) return;
+      
+      input.value = '';
+      
+      // Handle commands
+      if (text.startsWith('/')) {
+        await handleCommand(text);
+      } else {
+        // Regular message
+        await addChatMessage('user', text);
+        await fetch(`${API}/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'user', content: text })
+        });
+      }
+      
+      await fetchState();
+      scrollToBottom();
+    }
+
+    // Handle Commands
+    async function handleCommand(cmd) {
+      const parts = cmd.slice(1).split(' ');
+      const action = parts[0];
+      
+      try {
+        if (action === 'msg') {
+          const content = cmd.slice(5).replace(/^"(.*)"$/, '$1');
+          await addChatMessage('user', content);
+          await fetch(`${API}/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: 'user', content })
+          });
+          await addChatMessage('assistant', '✓ Message sent to working memory');
+        } else if (action === 'checkpoint') {
+          const checkpointId = parts[1] || 'checkpoint-' + Date.now();
+          await fetch(`${API}/checkpoint`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ checkpoint_id: checkpointId })
+          });
+          await addChatMessage('assistant', `✓ Checkpoint created: ${checkpointId}`);
+        } else if (action === 'step') {
+          const stepName = parts[1] || 'Step';
+          const key = parts[2] || 'key';
+          const val = parts[3] || 'value';
+          await fetch(`${API}/step`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              step_name: stepName,
+              action_type: 'success',
+              payload_key: key,
+              payload_val: val
+            })
+          });
+          await addChatMessage('assistant', `✓ Step executed: ${stepName}`);
+        } else if (action === 'rollback') {
+          const checkpointId = parts[1];
+          if (!checkpointId) {
+            await addChatMessage('assistant', '❌ Please specify checkpoint ID');
+            return;
+          }
+          await fetch(`${API}/rollback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ checkpoint_id: checkpointId })
+          });
+          await addChatMessage('assistant', `✓ Rolled back to: ${checkpointId}`);
+        } else if (action === 'status') {
+          const state = await fetchState();
+          const status = `📊 Current Status:\n- Working Memory: ${state.working_memory.length}\n- Paged Memory: ${state.paged_memory.length}\n- Steps: ${state.state_payload.step_count || 0}\n- Checkpoints: ${state.checkpoints.length}`;
+          await addChatMessage('assistant', status);
+        } else {
+          await addChatMessage('assistant', `❌ Unknown command: ${action}\nType /help for available commands`);
+        }
+      } catch (err) {
+        await addChatMessage('assistant', `❌ Error: ${err.message}`);
+      }
+    }
+
+    // Add Chat Message
+    async function addChatMessage(role, content) {
+      const container = document.getElementById('messagesContainer');
+      
+      const messageEl = document.createElement('div');
+      messageEl.className = 'message-enter';
+      
+      const isUser = role === 'user';
+      const bgColor = isUser ? 'bg-cyan-600/20 border-cyan-500/50' : 'bg-slate-800/50 border-slate-700/50';
+      const textColor = isUser ? 'text-cyan-100' : 'text-slate-100';
+      const align = isUser ? 'ml-auto' : 'mr-auto';
+      const maxWidth = 'max-w-lg';
+      
+      messageEl.innerHTML = `
+        <div class="flex ${isUser ? 'justify-end' : 'justify-start'}">
+          <div class="flex gap-3 ${maxWidth}">
+            ${!isUser ? '<div class="text-2xl">🤖</div>' : ''}
+            <div class="flex-1 ${isUser ? 'text-right' : 'text-left'}">
+              <div class="${bgColor} border rounded-lg px-4 py-3 ${textColor} text-sm leading-relaxed whitespace-pre-wrap break-words">
+                ${content}
+              </div>
+              <div class="text-xs text-slate-500 mt-1">${new Date().toLocaleTimeString()}</div>
+            </div>
+            ${isUser ? '<div class="text-2xl">👤</div>' : ''}
+          </div>
+        </div>
+      `;
+      
+      if (container.querySelector('.text-center')) {
+        container.innerHTML = '';
+      }
+      
+      container.appendChild(messageEl);
+      messages.push({ role, content, timestamp: new Date() });
+      scrollToBottom();
+    }
+
+    // Quick Actions
+    async function quickAction(action) {
+      const input = document.getElementById('messageInput');
+      
+      if (action === 'addMessage') {
+        input.placeholder = 'Type your message and press Send...';
+        input.focus();
+      } else if (action === 'checkpoint') {
+        input.value = '/checkpoint checkpoint-' + new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        input.focus();
+      } else if (action === 'step') {
+        input.value = '/step "MyStep" "key" "value"';
+        input.focus();
+      } else if (action === 'rollback') {
+        input.value = '/rollback ';
+        input.focus();
+      }
+    }
+
+    // Handle Key Press
+    function handleKeyPress(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    }
+
+    // Scroll to Bottom
+    function scrollToBottom() {
+      const container = document.getElementById('messagesContainer');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Modal Functions
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.add('hidden');
+    }
+
+    function toggleSettings() {
+      const modal = document.getElementById('settingsModal');
+      document.getElementById('apiUrl').value = API;
+      modal.classList.toggle('hidden');
+    }
+
+    function toggleDocs() {
+      document.getElementById('docsModal').classList.toggle('hidden');
+    }
+
+    async function showStats() {
+      const state = await fetchState();
+      const statsContent = document.getElementById('statsContent');
+      
+      statsContent.innerHTML = `
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-slate-800/50 border border-slate-700 rounded p-3">
+            <div class="text-xs text-slate-400">Working Memory</div>
+            <div class="text-2xl font-bold text-emerald-400">${state.working_memory.length}</div>
+          </div>
+          <div class="bg-slate-800/50 border border-slate-700 rounded p-3">
+            <div class="text-xs text-slate-400">Paged Memory</div>
+            <div class="text-2xl font-bold text-amber-400">${state.paged_memory.length}</div>
+          </div>
+          <div class="bg-slate-800/50 border border-slate-700 rounded p-3">
+            <div class="text-xs text-slate-400">Steps Executed</div>
+            <div class="text-2xl font-bold text-purple-400">${state.state_payload.step_count || 0}</div>
+          </div>
+          <div class="bg-slate-800/50 border border-slate-700 rounded p-3">
+            <div class="text-xs text-slate-400">Checkpoints</div>
+            <div class="text-2xl font-bold text-blue-400">${state.checkpoints.length}</div>
+          </div>
+        </div>
+        
+        <div>
+          <p class="font-semibold text-slate-300 mb-2">Recent Checkpoints</p>
+          <div class="space-y-1">
+            ${state.checkpoints.length > 0 
+              ? state.checkpoints.map(cp => `<div class="text-xs bg-slate-800/50 p-2 rounded text-slate-300">📌 ${cp}</div>`).join('')
+              : '<p class="text-xs text-slate-500">No checkpoints yet</p>'}
+          </div>
+        </div>
+        
+        <div>
+          <p class="font-semibold text-slate-300 mb-2">System State</p>
+          <pre class="text-xs bg-slate-800/50 p-3 rounded overflow-x-auto text-green-400">${JSON.stringify(state.state_payload, null, 2)}</pre>
+        </div>
+      `;
+      
+      document.getElementById('statsModal').classList.remove('hidden');
+    }
+
+    function newChat() {
+      messages = [];
+      const container = document.getElementById('messagesContainer');
+      container.innerHTML = `
+        <div class="text-center py-12 text-slate-400">
+          <div class="text-5xl mb-4">💬</div>
+          <p class="text-lg font-semibold mb-2">New Chat Session</p>
+          <p class="text-sm">Start typing to begin</p>
+        </div>
+      `;
+    }
+
+    function clearChat() {
+      if (confirm('Clear all messages? This cannot be undone.')) {
+        newChat();
+      }
+    }
+
+    function selectChat(id) {
+      currentChatId = id;
+    }
+
+    // Auto-refresh
+    function startAutoRefresh() {
+      const interval = parseInt(document.getElementById('refreshInterval').value) || 3000;
+      autoRefreshInterval = setInterval(() => {
+        if (document.getElementById('autoRefresh').checked) {
+          fetchState();
+        }
+      }, interval);
+    }
+  </script>
+</body>
+</html>
