@@ -1,0 +1,76 @@
+# .gcloudignore file for Google Cloud Build
+# Patterns to exclude from build context
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Version control
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+*.logs
+
+# Node modules (if any)
+node_modules/
+
+# Documentation
+docs/
+*.md
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Large files
+*.zip
+*.tar.gz
+*.iso
+*.dmg

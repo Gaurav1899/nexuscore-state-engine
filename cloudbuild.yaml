@@ -1,0 +1,72 @@
+# Google Cloud Build Configuration for NexusCore State Engine
+
+steps:
+  # Step 1: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/nexuscore-chat:$SHORT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/nexuscore-chat:latest'
+      - '.'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+
+  # Step 2: Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/nexuscore-chat:$SHORT_SHA'
+    waitFor: ['build-image']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-latest'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/nexuscore-chat:latest'
+    waitFor: ['build-image']
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/gke-deploy'
+    args:
+      - 'run'
+      - '--filename=.'
+      - '--image=gcr.io/$PROJECT_ID/nexuscore-chat:$SHORT_SHA'
+      - '--location=us-central1'
+      - '--filename=app.yaml'
+    id: 'deploy'
+    waitFor: ['push-latest']
+
+  # Step 4: Get service URL
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-url'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe nexuscore-chat \
+          --platform managed \
+          --region us-central1 \
+          --format="value(status.url)" > /workspace/service-url.txt
+    waitFor: ['deploy']
+
+images:
+  - 'gcr.io/$PROJECT_ID/nexuscore-chat:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/nexuscore-chat:latest'
+
+substitutions:
+  _SERVICE_NAME: 'nexuscore-chat'
+  _REGION: 'us-central1'
+  _MEMORY: '512Mi'
+  _CPU: '1'
+  _TIMEOUT: '3600'
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: 'ALLOW_LOOSE'
+
+timeout: '1800s'
