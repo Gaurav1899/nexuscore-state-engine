@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusCore State Engine - Web Application</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    .fade-enter {
+      animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .pulse-glow {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .code-block {
+      background-color: #0f172a;
+      border-left: 3px solid #06b6d4;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto p-4 space-y-6">
+
+    <!-- Navigation Bar -->
+    <nav class="flex justify-between items-center bg-slate-800/50 backdrop-blur border border-slate-700 rounded-lg p-4 sticky top-4 z-50">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center font-bold">NC</div>
+        <div>
+          <h1 class="text-xl font-bold text-cyan-400">NexusCore</h1>
+          <p class="text-xs text-slate-400">State Engine v1.0</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="switchTab('dashboard')" class="tab-btn px-3 py-2 text-sm rounded bg-cyan-600/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-600/30 transition">Dashboard</button>
+        <button onclick="switchTab('api')" class="tab-btn px-3 py-2 text-sm rounded text-slate-300 hover:bg-slate-700 transition">API</button>
+        <button onclick="switchTab('docs')" class="tab-btn px-3 py-2 text-sm rounded text-slate-300 hover:bg-slate-700 transition">Docs</button>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="refreshStats()" class="bg-emerald-600 hover:bg-emerald-500 text-xs px-3 py-2 rounded text-white transition">⟳ Refresh</button>
+        <button onclick="showReset()" class="bg-rose-600 hover:bg-rose-500 text-xs px-3 py-2 rounded text-white transition">Reset</button>
+      </div>
+    </nav>
+
+    <!-- Dashboard Tab -->
+    <div id="dashboard-tab" class="tab-content space-y-6">
+      
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div class="text-sm text-slate-400 mb-2">Working Memory</div>
+          <div id="stat-working" class="text-3xl font-bold text-emerald-400">0</div>
+          <div class="text-xs text-slate-500 mt-1">Active Messages</div>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div class="text-sm text-slate-400 mb-2">Paged Memory</div>
+          <div id="stat-paged" class="text-3xl font-bold text-amber-400">0</div>
+          <div class="text-xs text-slate-500 mt-1">Evicted Messages</div>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div class="text-sm text-slate-400 mb-2">Steps Executed</div>
+          <div id="stat-steps" class="text-3xl font-bold text-purple-400">0</div>
+          <div class="text-xs text-slate-500 mt-1">Total Operations</div>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div class="text-sm text-slate-400 mb-2">Checkpoints</div>
+          <div id="stat-checkpoints" class="text-3xl font-bold text-blue-400">0</div>
+          <div class="text-xs text-slate-500 mt-1">Saved States</div>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Memory Management -->
+        <div class="lg:col-span-2 space-y-6">
+          
+          <!-- Working Memory -->
+          <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-sm font-semibold text-emerald-400">📚 Active Context Memory (RAM)</h2>
+              <span id="mem-size" class="text-xs text-slate-400">0/5</span>
+            </div>
+            <div class="relative mb-2">
+              <div class="bg-slate-900 rounded h-2 overflow-hidden">
+                <div id="mem-bar" class="bg-gradient-to-r from-emerald-500 to-cyan-500 h-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+            <div id="workingMemory" class="space-y-2 max-h-48 overflow-y-auto pr-2">
+              <p class="text-xs text-slate-500 italic text-center py-4">No messages in active memory...</p>
+            </div>
+          </div>
+
+          <!-- Paged Memory -->
+          <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-sm font-semibold text-amber-400">💾 Paged Virtual Context (Disk)</h2>
+              <span id="paged-count" class="text-xs text-slate-400">0 items</span>
+            </div>
+            <div id="pagedMemory" class="space-y-2 max-h-40 overflow-y-auto pr-2">
+              <p class="text-xs text-slate-500 italic text-center py-4">Paged memory store is empty...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: State & Controls -->
+        <div class="space-y-6">
+          
+          <!-- System State -->
+          <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <h2 class="text-sm font-semibold text-purple-400 mb-3">🔧 System State</h2>
+            <pre id="statePayload" class="code-block p-3 rounded text-xs text-green-400 font-mono overflow-x-auto max-h-48 overflow-y-auto">{}</pre>
+          </div>
+
+          <!-- Message Input -->
+          <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+            <h2 class="text-sm font-semibold text-slate-200">💬 Add Message</h2>
+            <select id="msgRole" class="w-full bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded px-2 py-2">
+              <option value="user">👤 User</option>
+              <option value="assistant">🤖 Assistant</option>
+              <option value="system">⚙️ System</option>
+            </select>
+            <input id="msgContent" type="text" placeholder="Enter message..." class="w-full bg-slate-900 border border-slate-700 text-xs px-3 py-2 rounded text-slate-200 focus:outline-none focus:border-cyan-500">
+            <button onclick="sendMessage()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-xs px-4 py-2 rounded text-white font-medium transition">Send Message</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step Execution & Checkpoints -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Step Runner -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200">⚡ Execute Transactional Step</h2>
+          <input id="stepName" type="text" placeholder="Step name (e.g., DatabaseMigration)" class="w-full bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+          <div class="grid grid-cols-2 gap-2">
+            <input id="payKey" type="text" placeholder="Key" class="bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+            <input id="payVal" type="text" placeholder="Value" class="bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+          </div>
+          <div class="flex gap-2">
+            <button onclick="runStep('success')" class="flex-1 bg-emerald-700 hover:bg-emerald-600 text-xs py-2 rounded text-white font-medium transition">✓ Success</button>
+            <button onclick="runStep('fail')" class="flex-1 bg-rose-700 hover:bg-rose-600 text-xs py-2 rounded text-white font-medium transition">✗ Fail</button>
+          </div>
+        </div>
+
+        <!-- Checkpoints -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200">📌 Checkpoints & Rollback</h2>
+          <div class="flex gap-2">
+            <input id="ckptName" type="text" placeholder="Checkpoint name (v1.0)" class="flex-1 bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+            <button onclick="createCheckpoint()" class="bg-purple-600 hover:bg-purple-500 text-xs px-3 py-2 rounded text-white font-medium transition">Create</button>
+          </div>
+          <div id="checkpointList" class="space-y-1 max-h-32 overflow-y-auto">
+            <p class="text-xs text-slate-500 italic text-center py-2">No checkpoints yet...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <h2 class="text-sm font-semibold text-slate-200 mb-3">📋 Execution History</h2>
+        <div id="historyList" class="space-y-2 max-h-48 overflow-y-auto">
+          <p class="text-xs text-slate-500 italic text-center py-4">No steps executed yet...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Tab -->
+    <div id="api-tab" class="tab-content hidden space-y-6">
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
+        <h2 class="text-lg font-bold text-cyan-400 mb-4">🔌 API Tester</h2>
+        
+        <div class="space-y-4">
+          <!-- Endpoint Selector -->
+          <div>
+            <label class="text-xs text-slate-400 block mb-2">Select Endpoint</label>
+            <select id="apiEndpoint" class="w-full bg-slate-900 border border-slate-700 text-sm p-2 rounded text-slate-200">
+              <option value="/state">GET /api/state</option>
+              <option value="/message">POST /api/message</option>
+              <option value="/checkpoint">POST /api/checkpoint</option>
+              <option value="/rollback">POST /api/rollback</option>
+              <option value="/step">POST /api/step</option>
+              <option value="/history">GET /api/history</option>
+              <option value="/reset">POST /api/reset</option>
+            </select>
+          </div>
+
+          <!-- Request Body -->
+          <div>
+            <label class="text-xs text-slate-400 block mb-2">Request Body (JSON)</label>
+            <textarea id="apiBody" class="w-full bg-slate-900 border border-slate-700 text-xs p-3 rounded text-slate-200 font-mono h-32" placeholder="{}"></textarea>
+          </div>
+
+          <!-- Send Button -->
+          <button onclick="sendApiRequest()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-xs px-4 py-3 rounded text-white font-medium transition">Send Request</button>
+
+          <!-- Response -->
+          <div>
+            <label class="text-xs text-slate-400 block mb-2">Response</label>
+            <pre id="apiResponse" class="code-block p-3 rounded text-xs text-green-400 font-mono overflow-auto h-48">// Response will appear here</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Docs Tab -->
+    <div id="docs-tab" class="tab-content hidden space-y-6">
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+        <h2 class="text-lg font-bold text-cyan-400">📚 Documentation</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-slate-900 border border-slate-700 rounded p-4">
+            <h3 class="font-semibold text-emerald-400 mb-2">Getting Started</h3>
+            <ul class="text-xs text-slate-300 space-y-1">
+              <li>• Install dependencies: <code class="bg-slate-800 px-1 rounded">pip install -r requirements.txt</code></li>
+              <li>• Run backend: <code class="bg-slate-800 px-1 rounded">python app.py</code></li>
+              <li>• Open this dashboard in browser</li>
+              <li>• Start adding messages and creating checkpoints</li>
+            </ul>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-700 rounded p-4">
+            <h3 class="font-semibold text-blue-400 mb-2">Key Concepts</h3>
+            <ul class="text-xs text-slate-300 space-y-1">
+              <li>• <strong>Working Memory:</strong> Active context (RAM)</li>
+              <li>• <strong>Paged Memory:</strong> Evicted context (Disk)</li>
+              <li>• <strong>Checkpoints:</strong> State snapshots</li>
+              <li>• <strong>Steps:</strong> Transactional operations</li>
+            </ul>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-700 rounded p-4">
+            <h3 class="font-semibold text-purple-400 mb-2">API Base URL</h3>
+            <code class="bg-slate-800 px-2 py-1 rounded text-xs text-cyan-300 block">http://127.0.0.1:8000/api</code>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-700 rounded p-4">
+            <h3 class="font-semibold text-amber-400 mb-2">Configuration</h3>
+            <ul class="text-xs text-slate-300 space-y-1">
+              <li>• Max Working Memory: 5 items</li>
+              <li>• Auto-paging: Enabled</li>
+              <li>• CORS: Enabled</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-700 rounded p-4">
+          <h3 class="font-semibold text-slate-200 mb-2">Available Endpoints</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300">
+            <div>
+              <p class="text-emerald-400 font-mono mb-1">GET /api/state</p>
+              <p>Fetch current engine state</p>
+            </div>
+            <div>
+              <p class="text-blue-400 font-mono mb-1">POST /api/message</p>
+              <p>Add message to working memory</p>
+            </div>
+            <div>
+              <p class="text-purple-400 font-mono mb-1">POST /api/checkpoint</p>
+              <p>Create a state checkpoint</p>
+            </div>
+            <div>
+              <p class="text-amber-400 font-mono mb-1">POST /api/rollback</p>
+              <p>Restore from checkpoint</p>
+            </div>
+            <div>
+              <p class="text-cyan-400 font-mono mb-1">POST /api/step</p>
+              <p>Execute a transactional step</p>
+            </div>
+            <div>
+              <p class="text-green-400 font-mono mb-1">GET /api/history</p>
+              <p>View execution history</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Confirmation Modal -->
+  <div id="resetModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-sm">
+      <h3 class="text-lg font-bold text-rose-400 mb-4">⚠️ Reset State Engine?</h3>
+      <p class="text-sm text-slate-300 mb-4">This will clear:</p>
+      <ul class="text-xs text-slate-400 mb-6 space-y-1">
+        <li>✓ All working memory messages</li>
+        <li>✓ All paged memory messages</li>
+        <li>✓ All checkpoints</li>
+        <li>✓ All step history</li>
+      </ul>
+      <div class="flex gap-2">
+        <button onclick="confirmReset()" class="flex-1 bg-rose-600 hover:bg-rose-500 text-xs px-4 py-2 rounded text-white font-medium transition">Reset</button>
+        <button onclick="cancelReset()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-xs px-4 py-2 rounded text-white font-medium transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:8000/api";
+    let autoRefresh;
+
+    // Tab Switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`${tab}-tab`).classList.remove('hidden');
+    }
+
+    // Fetch and Update State
+    async function fetchState() {
+      try {
+        const res = await fetch(`${API}/state`);
+        const data = await res.json();
+        
+        // Update Stats
+        document.getElementById('stat-working').textContent = data.working_memory.length;
+        document.getElementById('stat-paged').textContent = data.paged_memory.length;
+        document.getElementById('stat-steps').textContent = data.state_payload.step_count || 0;
+        document.getElementById('stat-checkpoints').textContent = data.checkpoints.length;
+        
+        // Memory Bar
+        const memPercent = (data.working_memory.length / 5) * 100;
+        document.getElementById('mem-bar').style.width = memPercent + '%';
+        document.getElementById('mem-size').textContent = `${data.working_memory.length}/5`;
+        
+        // Working Memory
+        const wm = document.getElementById('workingMemory');
+        wm.innerHTML = data.working_memory.map((m, i) => `
+          <div class="p-2 rounded bg-slate-900 text-xs border-l-4 border-emerald-500 fade-enter">
+            <div class="flex justify-between mb-1">
+              <span class="font-bold text-slate-300">[${m.role}]</span>
+              <span class="text-slate-500 text-[10px]">msg ${i + 1}</span>
+            </div>
+            <p class="text-slate-200">${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}</p>
+          </div>
+        `).join('') || '<p class="text-xs text-slate-500 italic text-center py-4">No working memory.</p>';
+        
+        // Paged Memory
+        const pm = document.getElementById('pagedMemory');
+        pm.innerHTML = data.paged_memory.map(m => `
+          <div class="p-2 rounded bg-slate-900 text-xs border-l-4 border-amber-500 fade-enter">
+            <div class="flex justify-between mb-1">
+              <span class="font-bold text-amber-300">ID: ${m.id}</span>
+              <span class="text-slate-500 text-[10px]">${m.role}</span>
+            </div>
+            <p class="text-slate-200">${m.content.substring(0, 80)}...</p>
+          </div>
+        `).join('') || '<p class="text-xs text-slate-500 italic text-center py-4">Empty</p>';
+        
+        document.getElementById('paged-count').textContent = data.paged_memory.length + ' items';
+        
+        // State Payload
+        document.getElementById('statePayload').textContent = JSON.stringify(data.state_payload, null, 2);
+        
+        // Checkpoints
+        const ckList = document.getElementById('checkpointList');
+        ckList.innerHTML = data.checkpoints.map(cid => `
+          <div class="flex justify-between items-center bg-slate-900 p-2 rounded text-xs border border-slate-700 fade-enter">
+            <span class="font-mono text-cyan-300">📍 ${cid}</span>
+            <button onclick="rollback('${cid}')" class="bg-rose-900 hover:bg-rose-800 text-rose-200 text-[10px] px-2 py-1 rounded transition">Rollback</button>
+          </div>
+        `).join('') || '<p class="text-xs text-slate-500 italic text-center py-2">None</p>';
+
+      } catch (err) {
+        console.error('Error:', err);
+      }
+    }
+
+    // Send Message
+    async function sendMessage() {
+      const role = document.getElementById('msgRole').value;
+      const content = document.getElementById('msgContent').value;
+      if (!content) return;
+
+      await fetch(`${API}/message`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({role, content})
+      });
+      document.getElementById('msgContent').value = '';
+      fetchState();
+    }
+
+    // Create Checkpoint
+    async function createCheckpoint() {
+      const cid = document.getElementById('ckptName').value;
+      if (!cid) return;
+
+      await fetch(`${API}/checkpoint`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({checkpoint_id: cid})
+      });
+      document.getElementById('ckptName').value = '';
+      fetchState();
+    }
+
+    // Rollback
+    async function rollback(cid) {
+      await fetch(`${API}/rollback`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({checkpoint_id: cid})
+      });
+      fetchState();
+    }
+
+    // Run Step
+    async function runStep(action_type) {
+      const step_name = document.getElementById('stepName').value || 'Step';
+      const payload_key = document.getElementById('payKey').value || 'key';
+      const payload_val = document.getElementById('payVal').value || 'value';
+
+      await fetch(`${API}/step`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({step_name, action_type, payload_key, payload_val})
+      });
+      document.getElementById('stepName').value = '';
+      document.getElementById('payKey').value = '';
+      document.getElementById('payVal').value = '';
+      fetchState();
+      refreshHistory();
+    }
+
+    // Refresh History
+    async function refreshHistory() {
+      const res = await fetch(`${API}/history`);
+      const data = await res.json();
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = data.history.map((h, i) => `
+        <div class="p-2 rounded bg-slate-900 text-xs border-l-4 ${h.status === 'completed' ? 'border-emerald-500' : 'border-rose-500'}">
+          <div class="flex justify-between mb-1">
+            <span class="font-bold text-slate-300">${i + 1}. ${h.step_name}</span>
+            <span class="${h.status === 'completed' ? 'text-emerald-400' : 'text-rose-400'}">${h.status === 'completed' ? '✓' : '✗'}</span>
+          </div>
+          <p class="text-slate-400">${h.payload_key}: ${h.payload_val}</p>
+          <p class="text-slate-500 text-[10px]">${new Date(h.timestamp).toLocaleTimeString()}</p>
+        </div>
+      `).join('') || '<p class="text-xs text-slate-500 italic text-center py-4">None</p>';
+    }
+
+    // API Tester
+    async function sendApiRequest() {
+      const endpoint = document.getElementById('apiEndpoint').value;
+      const bodyText = document.getElementById('apiBody').value;
+      const method = endpoint.startsWith('/reset') ? 'POST' : endpoint.includes('POST') ? 'POST' : endpoint.startsWith('/history') ? 'GET' : endpoint === '/state' ? 'GET' : 'POST';
+      
+      try {
+        const options = {method};
+        if (method === 'POST' && bodyText) {
+          options.headers = {'Content-Type': 'application/json'};
+          options.body = bodyText;
+        }
+        
+        const res = await fetch(API + endpoint, options);
+        const data = await res.json();
+        document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+        fetchState();
+      } catch (err) {
+        document.getElementById('apiResponse').textContent = 'Error: ' + err.message;
+      }
+    }
+
+    // Refresh Stats
+    function refreshStats() {
+      fetchState();
+      refreshHistory();
+    }
+
+    // Reset Functions
+    function showReset() {
+      document.getElementById('resetModal').classList.remove('hidden');
+    }
+
+    function cancelReset() {
+      document.getElementById('resetModal').classList.add('hidden');
+    }
+
+    async function confirmReset() {
+      await fetch(`${API}/reset`, {method: 'POST'});
+      document.getElementById('resetModal').classList.add('hidden');
+      fetchState();
+      refreshHistory();
+    }
+
+    // Initial Load
+    fetchState();
+    refreshHistory();
+    setInterval(() => {
+      fetchState();
+      refreshHistory();
+    }, 3000);
+  </script>
+</body>
+</html>
