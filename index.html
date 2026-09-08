@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusCore State Engine Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center border-b border-slate-700 pb-4">
+      <div>
+        <h1 class="text-2xl font-bold text-cyan-400">NexusCore Dashboard</h1>
+        <p class="text-xs text-slate-400">Virtual Context Pager & Transactional State Simulator</p>
+      </div>
+      <button onclick="fetchState()" class="bg-cyan-600 hover:bg-cyan-500 text-xs px-3 py-2 rounded text-white font-medium">
+        Refresh State
+      </button>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+      <!-- Left Column: Memory Systems -->
+      <div class="space-y-6 md:col-span-2">
+        
+        <!-- Active Working Memory (LLM RAM) -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-sm font-semibold text-emerald-400">Active Context Memory (RAM)</h2>
+            <span class="text-xs text-slate-400">Auto-pages out when limits exceed</span>
+          </div>
+          <div id="workingMemory" class="space-y-2 max-h-48 overflow-y-auto pr-2">
+            <p class="text-xs text-slate-500 italic">No messages in active memory...</p>
+          </div>
+        </div>
+
+        <!-- Paged Virtual Memory (Disk/Vector Store) -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-sm font-semibold text-amber-400">Paged Virtual Context (Disk Vector Store)</h2>
+            <span class="text-xs text-slate-400">Evicted context stored for semantic retrieval</span>
+          </div>
+          <div id="pagedMemory" class="space-y-2 max-h-48 overflow-y-auto pr-2">
+            <p class="text-xs text-slate-500 italic">Paged memory store is empty...</p>
+          </div>
+        </div>
+
+        <!-- Message Insertion Controls -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200">Inject Conversation / Prompt Step</h2>
+          <div class="flex gap-2">
+            <select id="msgRole" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded px-2 py-1">
+              <option value="user">user</option>
+              <option value="assistant">assistant</option>
+              <option value="system">system</option>
+            </select>
+            <input id="msgContent" type="text" placeholder="Enter long payload text to force paging..." class="flex-1 bg-slate-900 border border-slate-700 text-xs px-3 py-1.5 rounded text-slate-200 focus:outline-none focus:border-cyan-500">
+            <button onclick="sendMessage()" class="bg-cyan-600 hover:bg-cyan-500 text-xs px-4 py-1.5 rounded text-white">Send</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: State & Checkpoints -->
+      <div class="space-y-6">
+
+        <!-- System State Payload -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <h2 class="text-sm font-semibold text-purple-400 mb-3">Active System State</h2>
+          <pre id="statePayload" class="bg-slate-900 border border-slate-950 p-3 rounded text-xs text-green-400 font-mono overflow-x-auto">{}</pre>
+        </div>
+
+        <!-- Step Execution -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200">Transactional Step Runner</h2>
+          <input id="stepName" type="text" placeholder="Step Name (e.g. RefactorAuth)" class="w-full bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+          <div class="grid grid-cols-2 gap-2">
+            <input id="payKey" type="text" placeholder="Key" class="bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+            <input id="payVal" type="text" placeholder="Value" class="bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+          </div>
+          <div class="flex gap-2">
+            <button onclick="runStep('success')" class="flex-1 bg-emerald-700 hover:bg-emerald-600 text-xs py-1.5 rounded text-white">Run (Success)</button>
+            <button onclick="runStep('fail')" class="flex-1 bg-rose-700 hover:bg-rose-600 text-xs py-1.5 rounded text-white">Run (Fail)</button>
+          </div>
+        </div>
+
+        <!-- Checkpoints & Rollback -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-200">Checkpoints & Rollback</h2>
+          <div class="flex gap-2">
+            <input id="ckptName" type="text" placeholder="Checkpoint Tag (v1.0)" class="flex-1 bg-slate-900 border border-slate-700 text-xs p-2 rounded text-slate-200">
+            <button onclick="createCheckpoint()" class="bg-purple-600 hover:bg-purple-500 text-xs px-3 py-1.5 rounded text-white">Commit</button>
+          </div>
+          <div id="checkpointList" class="space-y-1 pt-2">
+            <!-- List populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:8000/api";
+
+    async function fetchState() {
+      try {
+        const res = await fetch(`${API}/state`);
+        const data = await res.json();
+        
+        // Render Working Memory
+        const wm = document.getElementById("workingMemory");
+        wm.innerHTML = data.working_memory.map(m => `
+          <div class="p-2 rounded bg-slate-900 text-xs border-l-2 border-emerald-500">
+            <span class="font-bold text-slate-300">[${m.role}]:</span> ${m.content}
+          </div>
+        `).join("") || '<p class="text-xs text-slate-500 italic">No working memory.</p>';
+
+        // Render Paged Memory
+        const pm = document.getElementById("pagedMemory");
+        pm.innerHTML = data.paged_memory.map(m => `
+          <div class="p-2 rounded bg-slate-900 text-xs border-l-2 border-amber-500">
+            <span class="font-bold text-amber-300">ID: ${m.id} [${m.role}]:</span> ${m.content}
+          </div>
+        `).join("") || '<p class="text-xs text-slate-500 italic">No paged memory.</p>';
+
+        // Render System State Payload
+        document.getElementById("statePayload").innerText = JSON.stringify(data.state_payload, null, 2);
+
+        // Render Checkpoints
+        const ckList = document.getElementById("checkpointList");
+        ckList.innerHTML = data.checkpoints.map(cid => `
+          <div class="flex justify-between items-center bg-slate-900 p-2 rounded text-xs">
+            <span class="font-mono text-cyan-300">${cid}</span>
+            <button onclick="rollback('${cid}')" class="bg-rose-900 hover:bg-rose-800 text-rose-200 text-[10px] px-2 py-0.5 rounded">Rollback</button>
+          </div>
+        `).join("") || '<p class="text-xs text-slate-500 italic">No active checkpoints.</p>';
+
+      } catch (err) {
+        console.error("Error connecting to API:", err);
+      }
+    }
+
+    async function sendMessage() {
+      const role = document.getElementById("msgRole").value;
+      const content = document.getElementById("msgContent").value;
+      if (!content) return;
+
+      await fetch(`${API}/message`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ role, content })
+      });
+      document.getElementById("msgContent").value = "";
+      fetchState();
+    }
+
+    async function createCheckpoint() {
+      const cid = document.getElementById("ckptName").value;
+      if (!cid) return;
+
+      await fetch(`${API}/checkpoint`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ checkpoint_id: cid })
+      });
+      document.getElementById("ckptName").value = "";
+      fetchState();
+    }
+
+    async function rollback(cid) {
+      await fetch(`${API}/rollback`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ checkpoint_id: cid })
+      });
+      fetchState();
+    }
+
+    async function runStep(action_type) {
+      const step_name = document.getElementById("stepName").value || "GenericStep";
+      const payload_key = document.getElementById("payKey").value || "key";
+      const payload_val = document.getElementById("payVal").value || "val";
+
+      try {
+        const res = await fetch(`${API}/step`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ step_name, action_type, payload_key, payload_val })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          alert(`Step Execution Failed: ${errData.detail}`);
+        }
+      } catch (err) {
+        alert("Execution exception occurred.");
+      }
+      fetchState();
+    }
+
+    // Initial Load
+    fetchState();
+  </script>
+</body>
+</html>
